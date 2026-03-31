@@ -1,0 +1,403 @@
+---
+title: "Projekt zaliczeniowy"
+subtitle: "Wybrane pakiety do analizy danych 2024"
+author: "Alicja Czuż 417140"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# <span style="color: blue;">Wybór i opis zbioru danych</span> 
+
+Dostępnych jest 10 zbiorów danych. Do opracowania należy wybrać ten, którego
+numer jest równy **ostatniej cyfrze numeru indeksu**
+
+Zbiór danych zawiera następujące informacje o studentach:
+
+1.	Numer_indeksu: unikalny numer indeksu studenta (liczba sześciocyfrowa).
+
+2.	Płeć: Płeć studenta, tj. "Kobieta" lub "Mężczyzna".
+
+3.	Kierunek_studiów: kierunek, na którym studiuje student. Możliwe kierunki
+to: "Informatyka", "Ekonomia", "Psychologia", "Biologia".
+
+4.	Wiek: wiek studenta.
+
+5.	Czas_nauki: ilość godzin nauki tygodniowo.
+
+6.	Średnia_ocen: średnia ocen studenta.
+
+
+
+
+
+
+# <span style="color: red;">Przygotowanie danych</span> 
+
+## Zadania
+
+-	Załaduj dane (kod, bez kreatora) i przekształć zmienne jakościowe na typ `factor`.
+
+-	Wyświetl podsumowanie danych. Na podstawie tego określ, które zmienne są jakościowe, a które ilościowe.
+
+## Rozwiązania
+
+```{r}
+library("openxlsx")
+
+
+
+dane <- read.xlsx("preferencje_studentow_z_srednia_ocen0.xlsx")
+
+dane$Płeć <- factor(dane$Płeć)
+dane$Kierunek_studiów <- factor(dane$Kierunek_studiów)
+
+str(dane)
+summary(dane)
+
+
+
+
+```
+
+Dane ilościowe to : Numer_indeksu, Wiek, Czas_nauki, Średnia-ocen
+
+Dane jakościowe to: Płeć i kierunek.
+
+
+# <span style="color: green;">Obsługa brakujących danych</span> 
+
+## Zadania
+
+Sprawdź, czy w zestawie danych występują wartości `NA`. Jeśli tak:
+
+-	Dla zmiennych jakościowych zastąp brakujące wartości najczęściej występującą kategorią.
+
+-	Dla zmiennych ilościowych zastąp brakujące wartości średnią. Pamiętaj, aby dla zmiennej "wiek" średnia była zaokrąglona do pełnych wartości.
+
+## Rozwiązania
+
+```{r}
+library(Hmisc)
+
+sum(is.na(dane))
+#Występuje 50 braków
+
+#DLa zmiennych ilościowych
+dane$Wiek=impute(dane$Wiek, mean) 
+dane$Wiek=as.numeric(round(dane$Wiek))
+dane$Czas_nauki=impute(dane$Czas_nauki, mean)
+dane$Czas_nauki=as.numeric(dane$Czas_nauki)
+dane$Średnia_ocen=impute(dane$Średnia_ocen, mean)
+dane$Średnia_ocen=as.numeric(dane$Średnia_ocen)
+
+#Dla zmiennych jakościowych
+dane$Płeć=impute(dane$Płeć, fun=mode)
+dane$Kierunek_studiów=impute(dane$Kierunek_studiów, fun=mode)
+
+str(dane)
+
+sum(is.na(dane))
+#Wszystkie dane zostały odpowiednio zastąpione jeśli powyższa funkcja pokazuje 0
+
+
+```
+
+
+# <span style="color: blue;">Funkcja wyznaczająca kwotę stypendium</span> 
+
+## Zadania 
+
+Napisz funkcję, która na podstawie średniej określi, czy danej osobie należy się stypendium, a jeśli tak, to w jakiej wysokości.
+
+Progi otrzymania stypendium:
+
+- jeżeli średnia ≥ 4.5, to stypendium wynosi 750 zł,
+
+-	jeżeli średnia ≥ 4.7, to stypendium wynosi 850 zł,
+
+-	jeżeli średnia ≥ 4.9, to stypendium wynosi 950 zł.
+
+Argumentem funkcji powinna być ramka danych.
+
+Funkcja powinna zwrócić listę (lista - jako obiekt w R) złożoną z 3 elementów:
+
+-	liczby przyznanych stypendiów,
+
+-	macierzy/ramki danych z numerami indeksów stypendystów wraz z wyliczonymi kwotami,
+
+-	miesięcznego kosztu stypendium (sumy wszystkich przyznanych stypendiów).
+
+
+## Rozwiązania
+
+
+```{r}
+stypedia <- function(data) {
+  
+obliczanie_stypedii <- function(avg) {
+    if (avg >= 4.9) {
+      return(950)
+    } else if (avg >= 4.7) {
+      return(850)
+    } else if (avg >= 4.5) {
+      return(750)
+    } else {
+      return(0)
+    }
+  }
+  
+  data$Kwota_stypendium <- sapply(data$Średnia_ocen, obliczanie_stypedii)
+  
+  stypendysci <- data[data$Kwota_stypendium > 0, c("Numer_indeksu", "Kwota_stypendium")]
+
+  liczba_stypendiow <- nrow(stypendysci)
+  
+  koszt <- sum(stypendysci$Kwota_stypendium)
+  
+  return(list( liczba_stypendiow=liczba_stypendiow, stypendysci=stypendysci, koszt_miesieczny=koszt))
+}
+ stypedia(dane)
+
+```
+
+
+
+# <span style="color: red;">Wykres słupkowy dla kierunku studiów i płci</span> 
+
+## Zadania
+
+-	Używając biblioteki ggplot, stwórz wykres słupkowy (pionowe słupki) porównujący kierunek studiów z płcią. Wykres powinien mieć odpowiednio podpisane osie, tytuł, legendę oraz zmienione kolory słupków i tła.
+
+
+-	Na podstawie otrzymanego wykresu, opisz, jakie wnioski można wyciągnąć na temat zależności między płcią a kierunkiem studiów w zbiorze danych.
+
+## Rozwiązania
+
+```{r}
+library(ggplot2)
+ggplot(dane, aes(x = Kierunek_studiów, fill = Płeć)) +
+  geom_bar(position=position_dodge()) +
+  labs(title = "Porównanie kierunku studiów z płcią",x = "Kierunek studiów",y = "Liczba studentów",fill = "Płeć") +
+  scale_fill_manual(values = c("Kobieta" = "lightpink", "Mężczyzna" = "lightblue"))+
+  theme(panel.background = element_rect(fill = "#F0FFFF"))
+
+```
+
+Jak możemy zauważyć na danej uczelni jest ogromna przewaga kobiet w stosunku do mężczyzn.Najchętniej wybieranym kierunkiem wśród kobiet jest Informatyka, za to wśród mężczyzn Ekonomia. Na Informatyce oraz Biologii najbardziej jest odczuwalna różnica w ilości kobiet a mężczyzn.
+
+
+
+# <span style="color: green;">Histogram dla średniej ocen</span> 
+
+## Zadania
+
+-	Stwórz histogram dla średniej ocen, dodając linię reprezentującą jądrowy estymator gęstości oraz przerywane linie oznaczające średnią, modę i medianę. Oznacz osie, nadaj tytuł, zmień kolory histogramu oraz linii i dodaj legendę (legendy powinny uwzględniać styl linii, np. przerywana linia w legendzie odpowiada przerywanej linii na wykresie).
+
+
+-	Określ charakterystykę rozkładu: modalność, skośność i symetryczność.
+
+
+## Rozwiązania
+
+```{r}
+library(moments)
+
+srednia <- mean(dane$Średnia_ocen)
+mediana <- median(dane$Średnia_ocen)
+moda <- as.numeric(names(sort(table(dane$Średnia_ocen), decreasing = TRUE))[1])
+mediana
+srednia
+moda
+
+hist(dane$Średnia_ocen,  breaks = 30, col = "skyblue",main = "Histogram  średniej ocen",xlab = "Oceny", ylab = "Ilość",probability = TRUE)
+lines(density(dane$Średnia_ocen), col = "red")
+
+abline(v = srednia, col = "blue", lty = 2, lwd = 3)  
+abline(v = mediana, col = "green", lty = 3, lwd = 3)
+abline(v = moda, col = "purple", lty = 4, lwd = 3)
+
+legend("topleft",legend = c("Jądrowy estymator gęstości", "Średnia", "Mediana", "Moda"), col = c("red", "blue", "green", "purple"), lty = c(1, 2, 3, 4), lwd = 3)
+
+print("Skośność: ")
+print(skewness(dane$Średnia_ocen))
+
+```
+
+
+
+Rozkład jest jednomodalny, ponieważ wyraźnie widać jedno maksimum (czyliwartość modalną 5).
+
+Rozkład wykazuje skośność prawostronną. Jest to widoczne, ponieważ moda (5) znajduje się po prawej stronie średniej i mediany, a prawy ogon rozkładu jest wydłużony. wskazuje też na to ujemny wkaźnik skośności.
+
+Rozkład nie jest symetryczny, ponieważ wartości średniej i mediany są bliskie sobie, ale wyraźnie niższe od mody.
+
+
+
+# <span style="color: blue;">Wykresy pudełkowe dla czasu nauki a kierunek studiów</span> 
+
+## Zadania
+
+-	Przy użyciu ggplot, narysuj wykresy pudełkowe dla czasu nauki w podziale na kierunek studiów. Wykres powinien mieć podpisane osie, tytuł oraz zmienione kolory.
+
+
+
+-	Na podstawie wykresu określ, czy rozkłady czasu nauki różnią się w zależności od kierunku. Który kierunek wymaga średnio najwięcej czasu, a który najmniej? Który kierunek charakteryzuje się największą wariancją? Czy są widoczne wartości odstające i jak je zidentyfikować?
+
+
+## Rozwiązania
+
+
+```{r}
+library(ggplot2)
+ggplot(dane)+
+  geom_boxplot(aes(x=Kierunek_studiów, y=Czas_nauki, color = Kierunek_studiów))+
+ labs( title = "Czas nauki w zależności od kierunku studiów",x = "Kierunek studiów",y = "Czas nauki (godziny)" )+
+  scale_color_manual(values = c("Biologia"= "violet", "Ekonomia"="salmon1", "Informatyka"="cadetblue2", "Psychologia"="darkolivegreen2"))
+srednie <- tapply(dane$Czas_nauki, dane$Kierunek_studiów, mean)
+print("Średni czas nauki ze względu na kierunek studiów")
+print(srednie)
+print("Wariancja czasu nauki ze względu na kierunek studiów")
+wariancje <- tapply(dane$Czas_nauki, dane$Kierunek_studiów, var)
+print(wariancje)
+
+
+```
+
+
+Czas nauki różni się ze względu na kierunek studiów. Studenci Biologii średnio poświęcają najwięcej czasu na naukę, za to studenci ekonomii najmniej.
+
+Informatyka charakteryzuje się największą wariancją (Informatyka ma największy rozrzut wartości czyli najszersze pudełko).
+
+W naszym zbiorze danych występują wartości odstające przedstawiono na wykresie jako pojedyncze punkty.
+
+
+# <span style="color: red;">Analiza rozkładu czasu nauki dla najliczniejszego kierunku studiów</span> 
+
+## Zadania
+
+
+-	Wybierz czas nauki dla najliczniejszego kierunku studiów. Przeprowadź analizę rozkładu: przetestuj i porównaj  dwa lub trzy różne rozkłady, wyestymuj ich parametry i oceń dopasowanie.
+
+Rodziny rozkładów:
+wykładniczy `exp`, logarytmiczno-normalny `lnorm`, gamma `gamma`, normalny `norm`,  t-Studenta `t`,
+Weibulla `weibull`, beta `beta`, jednostajny `unif`
+
+
+## Rozwiązania
+
+```{r}
+library(fitdistrplus)
+Informatyka <- dane[which(dane$Kierunek_studiów == "Informatyka"),]
+
+czas_nauki <- as.numeric(Informatyka$Czas_nauki)
+
+hist(Informatyka$Czas_nauki, breaks=30)
+
+descdist(czas_nauki,discrete = FALSE) 
+print("Na podstawie rysunku można zauważyć, że najlepszymi rozkładami do analizy będą rozkłady: gamma i logarytmiczno-normy. Sprawdzam rozkład Weibulla z ciekawości :).")
+
+fit_gamma <- fitdist(czas_nauki, "gamma")  
+fit_lnorm <- fitdist(czas_nauki, "lnorm") 
+fit_weibull <- fitdist(czas_nauki, "weibull")  
+
+
+par(mfrow = c(2, 2))
+plot(fit_gamma)
+plot(fit_lnorm)
+plot(fit_weibull)
+
+gof <- gofstat(list(fit_gamma, fit_lnorm, fit_weibull), fitnames = c("Gamma", "Logarytmiczno-Normalny", "Weibull"))
+print(gof)
+
+
+```
+
+Porównywane rozkłady to : Gamma, Logistyczno-Normalny i Weibulla. Patrząc na parametry AIC i BIC można stwierdzić że najlepiej dopasowany jest rozkład Gamma.
+
+
+# <span style="color: green;">Wykres zależności średniej ocen od czasu nauki dla kierunku "Biologia".</span> 
+
+## Zadania
+
+
+-	Stwórz wykres punktowy, przedstawiający zależność średniej ocen od czasu nauki dla kierunku "Biologia". Wykres powinien mieć podpisane osie, tytuł, zmienione kolory oraz legendę.
+
+-	Na podstawie wykresu określ, jaki rodzaj zależności występuje między zmiennymi. Oblicz korelację między średnią ocen a czasem nauki. Sprawdź założenia regresji liniowej, wyestymuj współczynniki prostej regresji i dodaj ją na wykres. Przeprowadź również diagnostykę modelu za pomocą odpowiednich wykresów.
+
+
+
+## Rozwiązania
+
+```{r}
+library(lmtest)
+biologia_dane <- dane[which(dane$Kierunek_studiów=="Biologia"),]
+library(ggplot2)
+
+
+
+
+ggplot(biologia_dane, aes(x=Średnia_ocen,y= Czas_nauki)) +
+  geom_point(aes(color="Student biologii")) +
+  geom_smooth(aes(color= "Prosta regresii"), method = "lm", se = FALSE) +
+  scale_color_manual(values = c("Student biologii"="royalblue","Prosta regresii"= "red"))+
+  labs(title = "Czas nauki a średnia na kierunku Biologia")+
+   theme(panel.background = element_rect(fill="azure"),
+    panel.grid.major = element_line(color="black"),
+    panel.grid.minor = element_line(linewidth=0.2,color="grey"))
+
+print("Współczynnik korelacji")
+print(cor(biologia_dane$Średnia_ocen, biologia_dane$Czas_nauki))
+
+# 1.Testowanie postaci modelu liniowego
+model <- lm(Czas_nauki ~ Średnia_ocen, data = biologia_dane)
+summary(model)
+
+# 2. Histogram reszt
+residuals <- residuals(model)
+hist(residuals, main = "Histogram reszt", xlab = "Reszty", col = "lightblue", border = "black")
+
+# 3. Test Shapiro-Wilka test normalnosci 
+shapiro_test <- shapiro.test(residuals)
+print(shapiro_test)
+
+
+# 4. Test Breuscha-Pagana dla homoskedastyczności
+bp_test <- bptest(model)
+print(bp_test)
+
+
+# 5. Sprawdzenie autokorelacji reszt za pomocą testu Durbin-Watsona
+library("car")
+durbinWatsonTest(model)
+
+#Diagnostyka modelu
+par(mfrow=c(2,2))
+plot(model)
+
+
+```
+Na podstwie wykresu możemy zauważyć, że istnieje zależniść liniowa pomiędzy zmiennymi, ponieważ gdy Student chce mieć lepsze oceny to musi więcej czasu poświęcić na naukę.
+
+Testowanie postaci modelu liniowego : p-wartość wynosi 3.171e-08, więc istnieje statystycznie istotna zależność liniowa między tymi zmiennymi.
+
+Test Shapiro-Wilka test normalnosci :p-wartość jest większa od przyjętego poziomu istotności,więc reszty mają rozkład normalny.
+
+ Test Breuscha-Pagana dla homoskedastyczności: p-wartość jest większa niż przyjęty poziom istotności to nie odrzucamy hipotezy zerowej, że wariancja jest jednorodna.
+ 
+Testu Durbin-Watsona :p-wartość jest większa niż przyjęty poziom istotności więc nie ma statystycznych dowodów na występowanie autokorelacji reszt.
+
+Residuals vs Fitted : Punkty na wykresie są dość losowo rozproszone wokół czerwonej linii. To wskazuje, że model spełnia założenie liniowości.Czerwona linia jest dosyć płaska, że średnia reszt nie zależy od wartości dopasowanych, co jest pozytywne.
+
+Q-Q Residuals : Większość punktów układa się wzdłuż linii prostej y=x, co wskazuje, że reszty mają w przybliżeniu rozkład normalny.
+
+Scale_location : Punkty są stosunkowo równomiernie rozmieszczone wokół czerwonej linii, co sugeruje jednorodność wariancji (homoskedastyczność). 
+
+Residuals vs Leverage : Większość punktów znajduje się w granicach przerywanych linii, co sugeruje, że dane są stabilne i nie ma obserwacji wywierających nadmierny wpływ na model. Jednak punkty o numerach 347 i 471 mają wyraźnie wyższe wartości dźwigni (leverage), co oznacza, że mogą mieć nieco większy wpływ na dopasowanie modelu. 
+
+
+
